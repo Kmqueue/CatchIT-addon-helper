@@ -1,0 +1,229 @@
+local Addon = select(2, ...) ---@type Addon
+local Colors = Addon:GetModule("Colors")
+local ComponentFactory = Addon:GetModule("ComponentFactory")
+local L = Addon:GetModule("Locale")
+local StateManager = Addon:GetModule("StateManager")
+local Widgets = Addon:GetModule("Widgets")
+
+--- @class OptionsBuilder
+local OptionsBuilder = Addon:GetModule("OptionsBuilder")
+
+-- ============================================================================
+-- LuaCATS Annotations
+-- ============================================================================
+
+--- @class OptionsBuilderPanelOptions : TitledPanelComponentOptions
+--- @field descriptionText? string Small grey text above the first group, followed by a divider.
+--- @field interceptMouseWheel? fun(delta: number): boolean Called first on each wheel notch over the panel. Return `true` to take the notch so the panel does not scroll.
+
+--- @class OptionsBuilderMessageFooterOptions
+--- @field fontObject? string Font of the message. Defaults to `GameFontNormal`.
+--- @field color? Color Default color of the message. Defaults to `Colors.Grey`.
+--- @field defaultMessage? string Shown in grey while there is no message, which keeps the footer visible.
+
+--- @class OptionsBuilderTextOptions
+--- @field labelText string Option name.
+--- @field descriptionText string Shown in grey below the label.
+--- @field warningText? string Shown in pink below the description.
+
+--- @class OptionsBuilderCardOptions : OptionCardOptions, OptionsBuilderTextOptions
+
+--- @class OptionsBuilderChoice
+--- @field value any Value selected by this choice's chip.
+--- @field text string Chip label.
+--- @field tooltipText? string Shown below the label in a tooltip while hovering the chip.
+
+-- ============================================================================
+-- Local Functions
+-- ============================================================================
+
+--- Adds a line of chips to the box where exactly one is checked: the one whose
+--- value `get()` returns. Clicking a chip selects its value.
+--- @param self OptionsBuilderSettingsBox
+--- @param labelText string
+--- @param choices OptionsBuilderChoice[]
+--- @param get fun(): any
+--- @param set fun(value: any)
+local function addChoiceLine(self, labelText, choices, get, set)
+  local chips = {}
+
+  for _, choice in ipairs(choices) do
+    chips[#chips + 1] = {
+      text = choice.text,
+      get = function() return get() == choice.value end,
+      set = function(checked) if checked then set(choice.value) end end,
+      onUpdateTooltip = choice.tooltipText and function(chip, tooltip)
+        tooltip:SetOwner(chip, "ANCHOR_RIGHT")
+        tooltip:SetText(choice.text)
+        tooltip:AddLine(choice.tooltipText)
+      end
+    }
+  end
+
+  self:AddLine(labelText):AttachComponent(ComponentFactory:CheckChipGroup({ chips = chips }))
+end
+
+--- Adds a divider and a settings box to the card, below its description. The
+--- box is disabled and dimmed while the card is unchecked.
+--- @param self OptionsBuilderCard
+--- @return OptionsBuilderSettingsBox box
+local function addSettingsBox(self)
+  local divider = self.Content:AttachComponent(ComponentFactory:Divider())
+  divider:SetMarginTop(Widgets:Padding(0.25))
+
+  --- @class OptionsBuilderSettingsBox : SettingsBoxComponent
+  local box = self.Content:AttachComponent(ComponentFactory:SettingsBox({
+    isEnabled = function() return self:IsChecked() end
+  }))
+  box:SetMarginTop(Widgets:Padding(0.25))
+
+  box.AddChoiceLine = addChoiceLine
+
+  return box
+end
+
+-- ============================================================================
+-- OptionsBuilder
+-- ============================================================================
+
+--- Creates a titled, scrollable options panel.
+--- @param options OptionsBuilderPanelOptions
+--- @return TitledPanelComponent panel
+--- @return WaffleFlexComponent content Component the panel's rows are added to.
+function OptionsBuilder:CreatePanel(options)
+  local panel = ComponentFactory:TitledPanel(options)
+  local scrollPanel = panel.Content:AttachComponent(ComponentFactory:ScrollPanel({ interceptMouseWheel = options.interceptMouseWheel }))
+  local content = scrollPanel.ScrollChild
+  content:SetGap(Widgets:Padding())
+
+  if options.descriptionText then
+    content:AttachComponent(ComponentFactory:Text({
+      text = options.descriptionText,
+      fontObject = "GameFontNormalSmall",
+      color = Colors.Grey,
+      justifyH = "CENTER"
+    }))
+    content:AttachComponent(ComponentFactory:Divider())
+  end
+
+  return panel, content
+end
+
+--- Adds an option card with a label and description to `container`.
+--- @param container WaffleFlexComponent
+--- @param options OptionsBuilderCardOptions
+--- @return OptionsBuilderCard card
+function OptionsBuilder:AddOptionCard(container, options)
+  --- @class OptionsBuilderCard : OptionCardComponent
+  local card = container:AttachComponent(ComponentFactory:OptionCard(options))
+
+  card.Content:AttachComponent(ComponentFactory:Text({ text = options.labelText }))
+
+  card.Content:AttachComponent(ComponentFactory:Text({
+    text = options.descriptionText,
+    fontObject = "GameFontNormalSmall",
+    color = Colors.Grey
+  }))
+
+  if options.warningText then
+    card.Content:AttachComponent(ComponentFactory:Text({
+      text = options.warningText,
+      fontObject = "GameFontNormalSmall",
+      color = Colors.Pink
+    }))
+  end
+
+  card.AddSettingsBox = addSettingsBox
+
+  return card
+end
+
+--- The containers that have a group, so a later group gets a divider above it.
+--- @type table<WaffleFlexComponent, boolean?>
+local groupedContainers = setmetatable({}, { __mode = "k" })
+
+--- Adds a group of options to `container` under a heading, after a divider
+--- unless it is the first group.
+--- @param container WaffleFlexComponent
+--- @param headingText string
+--- @return OptionsBuilderGroup group
+function OptionsBuilder:AddGroup(container, headingText)
+  if groupedContainers[container] then
+    local divider = container:AttachComponent(ComponentFactory:Divider())
+    divider:SetMarginTop(Widgets:Padding())
+    divider:SetMarginBottom(Widgets:Padding())
+  end
+  groupedContainers[container] = true
+
+  --- @class OptionsBuilderGroup : WaffleFlexComponent
+  local group = container:AttachComponent(Addon.Waffle:Flex({
+    direction = "COLUMN",
+    height = "AUTO",
+    gap = Widgets:Padding()
+  }))
+
+  group:AttachComponent(ComponentFactory:Text({ text = headingText, fontObject = "GameFontNormalLarge" }))
+
+  --- Adds an option card to the group.
+  --- @param options OptionsBuilderCardOptions
+  --- @return OptionsBuilderCard card
+  function group:AddOptionCard(options)
+    return OptionsBuilder:AddOptionCard(self, options)
+  end
+
+  --- Adds a keybinding card to the group.
+  --- @param options KeybindingCardOptions
+  --- @return KeybindingCardComponent card
+  function group:AddKeybindingCard(options)
+    local card = ComponentFactory:KeybindingCard(options)
+    self:AttachComponent(card)
+    return card
+  end
+
+  return group
+end
+
+--- Adds a footer below `panel`'s scroll panel, under a divider, that shows a centered message. It is hidden
+--- until a message is set, unless it has a `defaultMessage`.
+--- @param panel TitledPanelComponent
+--- @param options? OptionsBuilderMessageFooterOptions
+--- @return OptionsBuilderMessageFooter footer
+function OptionsBuilder:AddMessageFooter(panel, options)
+  options = options or {}
+
+  local hasDefaultMessage = options.defaultMessage ~= nil
+  local idleText = hasDefaultMessage and Colors.Grey(options.defaultMessage) or " "
+
+  --- @class OptionsBuilderMessageFooter : WaffleFlexComponent
+  local footer = panel.Content:AttachComponent(Addon.Waffle:Flex({
+    direction = "COLUMN",
+    height = "AUTO",
+    gap = Widgets:Padding(),
+    visibility = hasDefaultMessage and "VISIBLE" or "GONE",
+    marginTop = Widgets:Padding()
+  }))
+
+  footer:AttachComponent(ComponentFactory:Divider())
+
+  local text = footer:AttachComponent(ComponentFactory:Text({
+    text = idleText,
+    fontObject = options.fontObject or "GameFontNormal",
+    color = options.color or Colors.Grey,
+    justifyH = "CENTER"
+  }))
+
+  --- Shows the message, or clears it when it is `nil`. Clearing hides the footer unless it has a default message.
+  --- @param message? string
+  function footer:SetMessage(message)
+    if message or hasDefaultMessage then
+      text:WhenFrameReady(function(fontString) fontString:SetText(message or idleText) end)
+      text:MarkDirty()
+    end
+
+    if not hasDefaultMessage then
+      self:SetVisibility(message and "VISIBLE" or "GONE")
+    end
+  end
+
+  return footer
+end

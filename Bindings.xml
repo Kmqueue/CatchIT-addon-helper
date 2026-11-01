@@ -1,0 +1,8 @@
+<Bindings>
+	<Binding name="CATCHITFISHINGKEY" category="CatchIT">
+		CatchIT_Fishing_Run()
+	</Binding>
+	<Binding name="CATCHITCASTKEY" category="CatchIT">
+		CatchIT_Fishing_Run()
+	</Binding>
+</Bindings>

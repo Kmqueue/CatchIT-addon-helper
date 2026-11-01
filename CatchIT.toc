@@ -1,0 +1,12 @@
+## Interface: 11509, 16001, 20506, 38002, 50504, 120100, 120105
+## Title: |cff58C6FACatchIT|r
+## Notes: Fishing helper and item destroyer, inspired by BetterFishing (Yuyuli), based on Dejunk (moody). Slash command: /catchit
+## Version: 1.4.1
+## Author: Kmqueue
+## X-Credits: BetterFishing by Yuyuli, Dejunk by moody
+## IconTexture: Interface\AddOns\CatchIT\assets\catchit-icon
+## AddonCompartmentFunc: CatchIT_OnAddonCompartmentClick
+## SavedVariables: CatchITDB, CatchITStatsDB
+## Category: Professions
+
+CatchIT.xml
