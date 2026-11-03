@@ -163,6 +163,17 @@ function MainWindowOptions:CreateFishingPanel()
     end
   }))
 
+  -- A bobber sound when fishing ends without a catch.
+  soundsBox:AddLine(L.NO_CATCH_SOUND_LINE):AttachComponent(ComponentFactory:CheckChip({
+    text = L.NO_CATCH_SOUND_TEXT,
+    get = function() return StateManager:GetGlobalState().fishing.noCatchSound end,
+    set = function(value) patchFishing({ noCatchSound = value }) end,
+    onUpdateTooltip = function(_, tooltip)
+      tooltip:SetText(L.NO_CATCH_SOUND_TEXT)
+      tooltip:AddLine(L.NO_CATCH_SOUND_DESCRIPTION, 1, 1, 1, true)
+    end
+  }))
+
   -- Minutes the sounds stay enhanced after the last cast.
   local delayLine = soundsBox:AddLine(L.SOUND_DELAY_MINUTES)
   local delayInput = delayLine:AttachComponent(ComponentFactory:NumberInput({

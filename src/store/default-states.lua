@@ -27,6 +27,7 @@ DefaultStates.UNBOUND_KEY = ""
 --- @field hideNamePlates boolean Hide NPC nameplates and names while fishing.
 --- @field enhanceSounds boolean Mute everything but effects while fishing.
 --- @field keepOnlyFishingSounds boolean With `enhanceSounds`, also mute every sound file but the sounds of the bobber.
+--- @field noCatchSound boolean With `enhanceSounds`, play a bobber sound when fishing ends without a catch.
 --- @field enhanceSoundsScale number Effects and master volume used while `enhanceSounds` is active, `0` to `1`.
 --- @field soundDelayMinutes integer Minutes the sounds stay enhanced after the last cast. `0` restores them right away.
 
@@ -51,6 +52,7 @@ DefaultStates.Global = {
     hideNamePlates = true,
     enhanceSounds = true,
     keepOnlyFishingSounds = true,
+    noCatchSound = true,
     enhanceSoundsScale = 1,
     soundDelayMinutes = 1
   },

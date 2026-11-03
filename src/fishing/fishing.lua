@@ -48,8 +48,20 @@ local HIDDEN_NAMES = {
   UnitNameFriendlySpecialNPCName = "0"
 }
 
---- Sound files of the bobber that stay audible with "Keep only fishing sounds".
-local FISHING_SOUND_FILES = { [568970] = true, [569044] = true, [569285] = true, [569807] = true, [569816] = true }
+--- Sound files of the bobber that stay audible with "Keep only fishing sounds". The sound of the cast (569807) is not
+--- one of them: after a lure the CatchIT app casts while it already listens for the bite.
+local FISHING_SOUND_FILES = { [568970] = true, [569044] = true, [569285] = true, [569816] = true }
+
+--- Sound played with "No catch sound" when fishing runs out of time: the CatchIT app hears it as a bite, presses the
+--- catch key in vain and casts again right away. Fishing that ends sooner was caught, got away or was stopped, and
+--- the app casts again after its catch by itself.
+local CAST_END_SOUND_FILE = 568970
+
+--- Milliseconds before its planned end that fishing may stop and still count as run out of time.
+local CAST_END_TOLERANCE_MS = 500
+
+--- Seconds the sounds stay enhanced at least after a lure was used, so the cast after it finds them enhanced.
+local LURE_SOUND_SECONDS = 20
 
 --- Highest sound file muted by "Keep only fishing sounds". Files of the newest retail content are above it and stay.
 local LAST_SOUND_FILE = 999999
@@ -69,6 +81,9 @@ local isAutoLooting = false
 
 --- `true` once the open loot window is counted in the statistics.
 local isLootCounted = false
+
+--- When the current fishing runs out of time, in milliseconds of `GetTime()`, `nil` when the client does not tell.
+local castEndMs = nil
 
 --- Timer that restores the sounds after the last cast, `nil` while none waits.
 local soundTimer = nil
@@ -98,9 +113,6 @@ local bindingOwner = CreateFrame("Frame")
 local castButton = CreateFrame("Button", "CatchITCastButton", UIParent, "SecureActionButtonTemplate")
 castButton:RegisterForClicks("LeftButtonDown")
 castButton:SetAttribute("useOnKeyDown", true)
-castButton:HookScript("PostClick", function(self)
-  if self.lureId then Lures:Used(self.lureId) end
-end)
 
 -- ============================================================================
 -- Local Functions
@@ -274,19 +286,28 @@ end
 
 --- Restores the sounds `soundDelayMinutes` after the last cast, or right away when it is `0`. The next cast cancels
 --- the wait, so the sounds stay enhanced while the player keeps fishing.
-local function scheduleSoundRestore()
+--- @param minSeconds number? The wait is at least this long.
+local function scheduleSoundRestore(minSeconds)
   cancelSoundTimer()
-  local minutes = tonumber(getSettings().soundDelayMinutes) or 0
+  local seconds = math.max((tonumber(getSettings().soundDelayMinutes) or 0) * 60, minSeconds or 0)
 
-  if minutes <= 0 then
+  if seconds <= 0 then
     restoreSounds()
   else
-    soundTimer = C_Timer.NewTimer(minutes * 60, function()
+    soundTimer = C_Timer.NewTimer(seconds, function()
       soundTimer = nil
       restoreSounds()
     end)
   end
 end
+
+-- A lure is put on the pole with the sounds enhanced already, so its sounds do not sound like a bite to the CatchIT app.
+castButton:HookScript("PostClick", function(self)
+  if not self.lureId then return end
+  Lures:Used(self.lureId)
+  enhanceSounds()
+  scheduleSoundRestore(LURE_SOUND_SECONDS)
+end)
 
 -- ============================================================================
 -- Events
@@ -312,6 +333,7 @@ end
 function handlers.UNIT_SPELLCAST_CHANNEL_START(_, _, spellId)
   if not FISHING_SPELLS[spellId] then return end
   isFishing = true
+  castEndMs = select(5, UnitChannelInfo("player"))
   Statistics:RecordCast()
   Lures:CastStarted()
 
@@ -333,6 +355,13 @@ function handlers.UNIT_SPELLCAST_CHANNEL_STOP()
   scheduleSoundRestore()
   outOfCombat("names", function() restoreGroup(groups.names) end)
   armKeys()
+
+  -- Ran out of time: tell the CatchIT app that it can cast again, see `CAST_END_SOUND_FILE`.
+  local settings = getSettings()
+  if castEndMs and GetTime() * 1000 >= castEndMs - CAST_END_TOLERANCE_MS and settings.enhanceSounds
+    and settings.noCatchSound then
+    PlaySoundFile(CAST_END_SOUND_FILE, "Master")
+  end
 end
 
 --- Counts the catch in the statistics, once for each loot window.
