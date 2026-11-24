@@ -27,6 +27,12 @@ Keybindings.lockTicker:Cancel()
 --- @type table<string, string>
 Keybindings.GAME_BINDINGS = { castAndInteract = "CATCHITFISHINGKEY", castWithLure = "CATCHITCASTKEY" }
 
+--- Bindings of the store whose key clicks a secure button of the fishing module (it uses an item), by binding name: the
+--- name of the button. Like every key of the store they are override bindings, so the key keeps its own binding in the
+--- game (for example an action bar button) and gets it back when the addon is off.
+--- @type table<string, string>
+Keybindings.SECURE_BUTTONS = { eatFood = "CatchITFoodButton", useHearthstone = "CatchITHearthButton" }
+
 --- Hidden buttons keyed by binding name.
 --- @type table<BindingName, Button>
 local buttons = {}
@@ -85,8 +91,13 @@ local function refreshOverrides()
   B.Bindings:ClearOverrides(BindingFrame)
 
   for bindingName, key in pairs(StateManager:GetGlobalState().keybindings) do
-    if handlers[bindingName] and key ~= DefaultStates.UNBOUND_KEY then
-      B.Bindings:SetClickOverride(BindingFrame, key, getButton(bindingName):GetName())
+    if key ~= DefaultStates.UNBOUND_KEY then
+      local secureButtonName = Keybindings.SECURE_BUTTONS[bindingName]
+      if secureButtonName then
+        B.Bindings:SetClickOverride(BindingFrame, key, secureButtonName)
+      elseif handlers[bindingName] then
+        B.Bindings:SetClickOverride(BindingFrame, key, getButton(bindingName):GetName())
+      end
     end
   end
 end

@@ -53,6 +53,7 @@
 
   <!-- Fishing -->
   <Script file="src\fishing\lures.lua"/>
+  <Script file="src\fishing\foods.lua"/>
   <Script file="src\fishing\statistics.lua"/>
   <Script file="src\fishing\fishing.lua"/>
   <Script file="src\fishing\containers.lua"/>

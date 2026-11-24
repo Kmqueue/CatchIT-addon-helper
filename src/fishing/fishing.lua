@@ -1,12 +1,15 @@
 -- Fishing helper of CatchIT: one key that casts and then interacts with the bobber, a key that only casts (for the
--- CatchIT app), a lure put on the pole before the cast, soft target while fishing, auto loot, and hidden names,
--- enhanced sounds and only the sounds of the bobber while fishing. Written for CatchIT, the idea of the one key comes
+-- CatchIT app), a lure put on the pole before the cast, keys that eat a fishing food and use the hearthstone (nothing
+-- has to be on the action bars), soft target while fishing, auto loot, and hidden names, enhanced sounds and only the
+-- sounds of the bobber while fishing. Written for CatchIT, the idea of the one key comes
 -- from BetterFishing by Yuyuli. Settings live in the CatchIT store (`global.fishing`).
 local Addon = select(2, ...) ---@type Addon
 local Containers = Addon:GetModule("Containers")
 local DefaultStates = Addon:GetModule("DefaultStates")
 local E = Addon:GetModule("Events")
 local EventManager = Addon:GetModule("EventManager")
+local Foods = Addon:GetModule("Foods")
+local L = Addon:GetModule("Locale")
 local Lures = Addon:GetModule("Lures")
 local StateManager = Addon:GetModule("StateManager")
 local Statistics = Addon:GetModule("Statistics")
@@ -63,6 +66,15 @@ local CAST_END_TOLERANCE_MS = 500
 --- Seconds the sounds stay enhanced at least after a lure was used, so the cast after it finds them enhanced.
 local LURE_SOUND_SECONDS = 20
 
+--- Seconds the sounds stay enhanced at least after the food key ate: the CatchIT app listens for a bite during the
+--- eating already (the key may have cast instead), the eating must not sound like a bite.
+local FOOD_SOUND_SECONDS = 40
+
+--- The hearthstone, used by the "Use Hearthstone" key.
+local HEARTHSTONE_ITEM_ID = 6948
+
+local GetItemCount = C_Item and C_Item.GetItemCount or GetItemCount
+
 --- Highest sound file muted by "Keep only fishing sounds". Files of the newest retail content are above it and stay.
 local LAST_SOUND_FILE = 999999
 
@@ -113,6 +125,19 @@ local bindingOwner = CreateFrame("Frame")
 local castButton = CreateFrame("Button", "CatchITCastButton", UIParent, "SecureActionButtonTemplate")
 castButton:RegisterForClicks("LeftButtonDown")
 castButton:SetAttribute("useOnKeyDown", true)
+
+--- The button of the "Eat Food" key (a key of the store, see `Keybindings.SECURE_BUTTONS`): it eats the food of
+--- `Foods:GetFoodToEat()` (its `foodId`), and when there is none (still well fed, no food) it does what the cast button
+--- does: the lure that is due (`lureId`) or the cast. The CatchIT app can then go on fishing either way.
+local foodButton = CreateFrame("Button", "CatchITFoodButton", UIParent, "SecureActionButtonTemplate")
+foodButton:RegisterForClicks("LeftButtonDown")
+foodButton:SetAttribute("useOnKeyDown", true)
+
+--- The button of the "Use Hearthstone" key (a key of the store, see `Keybindings.SECURE_BUTTONS`): it uses the
+--- hearthstone from the bags.
+local hearthButton = CreateFrame("Button", "CatchITHearthButton", UIParent, "SecureActionButtonTemplate")
+hearthButton:RegisterForClicks("LeftButtonDown")
+hearthButton:SetAttribute("useOnKeyDown", true)
 
 -- ============================================================================
 -- Local Functions
@@ -175,19 +200,48 @@ local function restoreGroup(group)
   group.saved = nil
 end
 
+--- Sets `button` to put the lure `lureId` on the pole, or to cast fishing without one. Not in combat.
+--- @param button Button
+--- @param lureId integer?
+local function setCastAttributes(button, lureId)
+  local spellName = getSpellName(7620) or getSpellName(131474)
+  local setting = lureId and ("item:" .. lureId) or spellName
+  if button.setting == setting then return end
+  button.setting, button.lureId, button.foodId = setting, lureId, nil
+
+  button:SetAttribute("type", lureId and "item" or "spell")
+  button:SetAttribute("item", lureId and setting or nil)
+  button:SetAttribute("target-slot", lureId and (INVSLOT_MAINHAND or 16) or nil)
+  button:SetAttribute("spell", not lureId and spellName or nil)
+end
+
 --- Sets the cast button to the lure that is due, or to casting fishing.
 local function refreshCastButton()
-  outOfCombat("button", function()
-    local lureId = Lures:GetLureToApply()
-    local spellName = getSpellName(7620) or getSpellName(131474)
-    local setting = lureId and ("item:" .. lureId) or spellName
-    if castButton.setting == setting then return end
-    castButton.setting, castButton.lureId = setting, lureId
+  outOfCombat("button", function() setCastAttributes(castButton, Lures:GetLureToApply()) end)
+end
 
-    castButton:SetAttribute("type", lureId and "item" or "spell")
-    castButton:SetAttribute("item", lureId and setting or nil)
-    castButton:SetAttribute("target-slot", lureId and (INVSLOT_MAINHAND or 16) or nil)
-    castButton:SetAttribute("spell", not lureId and spellName or nil)
+--- Sets the food button to the food that is due, or like the cast button when none is.
+local function refreshFoodButton()
+  outOfCombat("food", function()
+    local foodId = Foods:GetFoodToEat()
+    if not foodId then return setCastAttributes(foodButton, Lures:GetLureToApply()) end
+
+    local setting = "food:" .. foodId
+    if foodButton.setting == setting then return end
+    foodButton.setting, foodButton.lureId, foodButton.foodId = setting, nil, foodId
+
+    foodButton:SetAttribute("type", "item")
+    foodButton:SetAttribute("item", "item:" .. foodId)
+    foodButton:SetAttribute("target-slot", nil)
+    foodButton:SetAttribute("spell", nil)
+  end)
+end
+
+--- Sets the hearthstone button once.
+local function setHearthButton()
+  outOfCombat("hearth", function()
+    hearthButton:SetAttribute("type", "item")
+    hearthButton:SetAttribute("item", "item:" .. HEARTHSTONE_ITEM_ID)
   end)
 end
 
@@ -196,6 +250,7 @@ end
 --- `CatchIT_Fishing_Run()`), so a second press casts after a lure and does nothing while fishing.
 local function armKeys()
   refreshCastButton()
+  refreshFoodButton()
   outOfCombat("keys", function()
     local fishKey1, fishKey2 = GetBindingKey("CATCHITFISHINGKEY")
     local castKey1, castKey2 = GetBindingKey("CATCHITCASTKEY")
@@ -205,6 +260,7 @@ local function armKeys()
 
     ClearOverrideBindings(bindingOwner)
     armedKeys = keys
+
 
     for _, key in pairs({ fishKey1, fishKey2 }) do
       if isFishing then
@@ -309,6 +365,31 @@ castButton:HookScript("PostClick", function(self)
   scheduleSoundRestore(LURE_SOUND_SECONDS)
 end)
 
+-- Eating with the sounds enhanced already, like the lure. When it did not eat, it put a lure on or cast: say why.
+foodButton:HookScript("PostClick", function(self)
+  if self.foodId then
+    enhanceSounds()
+    scheduleSoundRestore(FOOD_SOUND_SECONDS)
+    return
+  end
+  if self.lureId then
+    Lures:Used(self.lureId)
+    enhanceSounds()
+    scheduleSoundRestore(LURE_SOUND_SECONDS)
+  end
+  if not getSettings().autoFood then return end
+  if Foods:IsWellFed() then
+    Addon:Print(L.STILL_WELL_FED:format(math.ceil(Foods:GetWellFedSecondsLeft() / 60)))
+  else
+    Addon:Print(L.NO_FOOD_TO_EAT)
+  end
+end)
+
+-- No hearthstone: the key does nothing, say why.
+hearthButton:HookScript("PostClick", function()
+  if (GetItemCount(HEARTHSTONE_ITEM_ID) or 0) == 0 then Addon:Print(L.NO_HEARTHSTONE) end
+end)
+
 -- ============================================================================
 -- Events
 -- ============================================================================
@@ -317,6 +398,7 @@ end)
 local handlers = {}
 
 function handlers.PLAYER_LOGIN()
+  setHearthButton()
   armKeys()
 end
 
@@ -420,15 +502,17 @@ for event in pairs(handlers) do
   end
 end
 
--- The lure runs out without an event, and bags and the pole change: the cast button follows each second.
+-- The lure runs out without an event, and bags and the pole change: the cast and food buttons follow each second.
 C_Timer.NewTicker(1, function()
   Lures:Check()
   refreshCastButton()
+  refreshFoodButton()
 end)
 
 -- Turning an option off while it is active restores right away.
 EventManager:On(E.StateUpdated, function(state)
   refreshCastButton()
+  refreshFoodButton()
   local settings = state.global.fishing
   if not settings.enhanceSounds then
     cancelSoundTimer()

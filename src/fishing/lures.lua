@@ -23,13 +23,19 @@ Lures.LIST = {
 --- the player stopped it, or it cannot be used (for example it needs more fishing skill).
 local APPLY_SECONDS = 2
 
+--- Seconds a lure that did not get on the pole is skipped at most: the second press of the CatchIT app (7.5 s) casts
+--- without it, a new start after a pause tries the lure again.
+local SKIP_SECONDS = 30
+
 local GetItemCount = C_Item and C_Item.GetItemCount or GetItemCount
 local GetItemInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local GetItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
 
---- `true` after a lure did not get on the pole: the next press casts without one, and the cast after it tries the lure
---- again (see `CastStarted()`), so a lure never keeps the keys from casting.
-local skipOnce = false
+--- Until when (`GetTime()`) the presses cast without a lure after one did not get on the pole: until the next fishing
+--- cast starts (see `CastStarted()`), `SKIP_SECONDS` at most, so a lure never keeps the keys from casting and a
+--- stopped lure does not stay skipped after a pause. `nil` while no lure is skipped.
+--- @type number?
+local skipUntil = nil
 
 --- The lure used last, until it is on the pole or skipped.
 --- @type { id: integer, at: number }?
@@ -81,7 +87,7 @@ end
 --- @return integer? itemId
 function Lures:GetLureToApply()
   local settings = getSettings()
-  if skipOnce or not settings.autoLure or not self:IsPoleEquipped() or hasLure() then return nil end
+  if (skipUntil and GetTime() < skipUntil) or not settings.autoLure or not self:IsPoleEquipped() or hasLure() then return nil end
 
   local wanted = tonumber(settings.lure)
   for _, lure in ipairs(self.LIST) do
@@ -108,12 +114,12 @@ function Lures:Check()
   end
   if GetTime() - pending.at < APPLY_SECONDS or UnitCastingInfo("player") then return false end
 
-  skipOnce = true
+  skipUntil = GetTime() + SKIP_SECONDS
   pending = nil
   return true
 end
 
 --- A fishing cast started: the next cast puts the lure on again when one is due.
 function Lures:CastStarted()
-  skipOnce = false
+  skipUntil = nil
 end

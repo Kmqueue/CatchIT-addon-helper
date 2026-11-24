@@ -53,7 +53,7 @@ function Commands.help()
   Addon:ForcePrint(L.COMMANDS .. ":")
   printCommand("", L.COMMAND_DESCRIPTION_OPTIONS)
   printCommand("destroy", L.COMMAND_DESCRIPTION_DESTROY)
-  printCommand("bind cast KEY catch KEY destroy KEY", L.COMMAND_DESCRIPTION_BIND)
+  printCommand("bind cast KEY catch KEY food KEY hearth KEY destroy KEY", L.COMMAND_DESCRIPTION_BIND)
   printCommand("stats", L.COMMAND_DESCRIPTION_STATS)
   printCommand("help", L.COMMAND_DESCRIPTION_HELP)
 end
@@ -91,6 +91,8 @@ end
 local bindNames = {
   cast = { binding = "castWithLure", label = function() return L.CAST_WITH_LURE end },
   catch = { action = "INTERACTMOUSEOVER", label = function() return GetBindingName("INTERACTMOUSEOVER") end },
+  food = { binding = "eatFood", label = function() return L.EAT_FOOD end },
+  hearth = { binding = "useHearthstone", label = function() return L.USE_HEARTHSTONE end },
   destroy = { binding = "destroyNextItem", label = function() return L.DESTROY_NEXT_ITEM end }
 }
 
@@ -110,9 +112,10 @@ local function bindKey(name, key)
   Addon:ForcePrint(L.KEY_BOUND_BY_COMMAND:format(Colors.Gold(bind.label()), Colors.Gold(key)))
 end
 
---- Sets the keys of bindings, typed by the button "Set keys in WoW" of the CatchIT app in one line:
---- `/catchit bind cast , catch . destroy NUMPAD9`. Each key is a WoW key name. Cast goes to Cast with Lure, catch to
---- Interact with Mouseover of the game, destroy to Destroy Next Item.
+--- Sets the keys of bindings, typed by the button "Set all keys in WoW" of the CatchIT app in one line:
+--- `/catchit bind cast , catch . food 0 hearth = destroy NUMPAD9`. Each key is a WoW key name. Cast goes to Cast with
+--- Lure, catch to Interact with Mouseover of the game, food to Eat Food, hearth to Use Hearthstone, destroy to
+--- Destroy Next Item.
 --- @param ... string Pairs of a name and a key.
 function Commands.bind(...)
   local args = { ... }

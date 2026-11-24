@@ -22,6 +22,9 @@ DefaultStates.UNBOUND_KEY = ""
 --- @field autoLoot boolean Always auto loot fishing loot.
 --- @field autoLure boolean The cast keys put a lure on the fishing pole when it has none.
 --- @field lure string `"best"`, or the item ID of the lure to use.
+--- @field autoFood boolean The "Eat Food" key eats a fishing food.
+--- @field food string `"best"`, or the item ID of the food to eat.
+--- @field wellFedMinutes integer No food is eaten while the player is well fed for longer, `0` always eats.
 --- @field openContainers "off"|"caught"|"all" With `autoLoot`, open the clams and containers caught by fishing, or all
 --- containers of the bags, that open without a cast.
 --- @field hideNamePlates boolean Hide NPC nameplates and names while fishing.
@@ -48,6 +51,9 @@ DefaultStates.Global = {
     autoLoot = true,
     autoLure = true,
     lure = "best",
+    autoFood = true,
+    food = "best",
+    wellFedMinutes = 5,
     openContainers = "caught",
     hideNamePlates = true,
     enhanceSounds = true,
@@ -67,6 +73,8 @@ DefaultStates.Global = {
   keybindings = {
     toggleMainWindow = DefaultStates.UNBOUND_KEY,
     destroyNextItem = DefaultStates.UNBOUND_KEY,
+    eatFood = DefaultStates.UNBOUND_KEY,
+    useHearthstone = DefaultStates.UNBOUND_KEY,
     addToProfileInclusions = DefaultStates.UNBOUND_KEY,
     removeFromProfileInclusions = DefaultStates.UNBOUND_KEY,
     addToGlobalInclusions = DefaultStates.UNBOUND_KEY,

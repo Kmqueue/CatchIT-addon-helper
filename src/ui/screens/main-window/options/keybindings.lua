@@ -10,6 +10,7 @@ local Keybindings = Addon:GetModule("Keybindings")
 local L = Addon:GetModule("Locale")
 local Lists = Addon:GetModule("Lists")
 local Lures = Addon:GetModule("Lures")
+local Foods = Addon:GetModule("Foods")
 local ActionCreators = Addon:GetModule("ActionCreators")
 local MinimapIcon = Addon:GetModule("MinimapIcon")
 local StateManager = Addon:GetModule("StateManager")
@@ -125,6 +126,47 @@ function MainWindowOptions:CreateFishingPanel()
     function() return StateManager:GetGlobalState().fishing.lure end,
     function(value) patchFishing({ lure = value }) end
   )
+
+  -- The food of the Eat Food key.
+  local foodCard = fishing:AddOptionCard({
+    labelText = L.AUTO_FOOD_TEXT,
+    descriptionText = L.AUTO_FOOD_DESCRIPTION,
+    get = function() return StateManager:GetGlobalState().fishing.autoFood end,
+    set = function(value) patchFishing({ autoFood = value }) end
+  })
+  local foodChoices = { { value = "best", text = L.BEST_FOOD, tooltipText = L.BEST_FOOD_DESCRIPTION } }
+  for _, food in ipairs(Foods.LIST) do
+    foodChoices[#foodChoices + 1] = {
+      value = tostring(food.id),
+      text = Foods:GetName(food.id),
+      tooltipText = L.FOOD_BONUS:format(food.bonus, food.level)
+    }
+  end
+  local foodBox = foodCard:AddSettingsBox()
+  foodBox:AddChoiceLine(
+    L.FOOD,
+    foodChoices,
+    function() return StateManager:GetGlobalState().fishing.food end,
+    function(value) patchFishing({ food = value }) end
+  )
+
+  -- Minutes of the well fed buff left above which no food is eaten.
+  local wellFedLine = foodBox:AddLine(L.WELL_FED_MINUTES)
+  local wellFedInput = wellFedLine:AttachComponent(ComponentFactory:NumberInput({
+    width = 50,
+    maxLetters = 2,
+    get = function() return StateManager:GetGlobalState().fishing.wellFedMinutes end,
+    set = function(value) patchFishing({ wellFedMinutes = math.max(math.floor(value), 0) }) end
+  }))
+  wellFedInput:WhenFrameReady(function(frame) frame:PropagateWhenDisabled(true) end)
+  local wellFedHint = wellFedLine:AttachComponent(ComponentFactory:Text({
+    text = L.WELL_FED_HINT,
+    fontObject = "GameFontNormalSmall",
+    color = Colors.Grey,
+    wordWrap = false,
+    width = "AUTO"
+  }))
+  wellFedHint:SetMarginTop(Widgets.CONTROL_PADDING)
 
   fishing:AddOptionCard({
     labelText = L.HIDE_NAMEPLATES_TEXT,
@@ -306,6 +348,8 @@ function MainWindowOptions:CreateKeybindingsPanel()
   local actions = OptionsBuilder:AddGroup(container, L.ACTIONS)
   addKeybindingCard(actions, footer, "destroyNextItem", L.DESTROY_NEXT_ITEM, L.KEYBIND_DESCRIPTION_DESTROY_NEXT_ITEM)
   addKeybindingCard(actions, footer, "castWithLure", BINDING_NAME_CATCHITCASTKEY, L.KEYBIND_DESCRIPTION_CAST_WITH_LURE)
+  addKeybindingCard(actions, footer, "eatFood", L.EAT_FOOD, L.KEYBIND_DESCRIPTION_EAT_FOOD)
+  addKeybindingCard(actions, footer, "useHearthstone", L.USE_HEARTHSTONE, L.KEYBIND_DESCRIPTION_USE_HEARTHSTONE)
   addKeybindingCard(actions, footer, "castAndInteract", L.CAST_AND_INTERACT_STANDALONE, L.KEYBIND_DESCRIPTION_CAST_AND_INTERACT)
   addKeybindingCard(actions, footer, "toggleMainWindow", L.TOGGLE_MAIN_WINDOW)
 
