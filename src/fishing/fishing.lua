@@ -325,8 +325,8 @@ local function enhanceSounds()
   cancelSoundTimer()
   local settings = getSettings()
   if not settings.enhanceSounds then return end
-  if settings.keepOnlyFishingSounds and not soundFilesMuted then muteSoundFiles(true) end
 
+  local backgroundWasOff = GetCVar("Sound_EnableSoundWhenGameIsInBG") ~= "1"
   local volume = tostring(settings.enhanceSoundsScale or 1)
   applyGroup(groups.sounds, {
     Sound_EnableAllSound = "1",
@@ -338,6 +338,16 @@ local function enhanceSounds()
     Sound_SFXVolume = volume,
     Sound_MasterVolume = volume
   })
+
+  -- The game applies the sound in the background only when its window gets the focus again: with the CatchIT app the
+  -- window may stay in the background the whole time (fishing started from the app), so the sound system is
+  -- restarted once, when the sound in the background was just turned on. A restart may forget the muted sound files,
+  -- they are muted again below.
+  if backgroundWasOff and GetCVar("Sound_EnableSoundWhenGameIsInBG") == "1" and Sound_GameSystem_RestartSoundSystem then
+    Sound_GameSystem_RestartSoundSystem()
+    soundFilesMuted = false
+  end
+  if settings.keepOnlyFishingSounds and not soundFilesMuted then muteSoundFiles(true) end
 end
 
 --- Restores the sounds `soundDelayMinutes` after the last cast, or right away when it is `0`. The next cast cancels
